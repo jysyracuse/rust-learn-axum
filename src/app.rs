@@ -1,5 +1,5 @@
 use axum::{
-  extract::{Json, Extension},
+  extract::Extension,
   Router
 };
 use http::header;
@@ -50,10 +50,11 @@ pub async fn create_app() -> Router {
   #[openapi(
       paths(
         routes::user::get_users_api,
+        routes::user::get_user_api,
       ),
       components(
         schemas(
-          routes::user::UsersResponse,
+          // routes::user::UsersResponse,
         )
       ),
       // modifiers(&SecurityAddon),

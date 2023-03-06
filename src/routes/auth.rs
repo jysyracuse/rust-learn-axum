@@ -74,6 +74,7 @@ async fn login_handler(
     // If can not find user from db
     return Err(AppError::WrongCredentials)
   }
+  
   let jwt_data = sign(user_obj.as_ref().unwrap().id.to_string()).unwrap();
     tracing::info!("jwt data: {}", jwt_data);
     let set_cookie = Cookie::build("user", jwt_data)
