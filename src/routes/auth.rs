@@ -11,11 +11,10 @@ use prisma_client_rust::{
   QueryError,
 };
 
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use serde_json::{json, Value};
 use std::any::Any;
 use bcrypt::{DEFAULT_COST, hash, verify};
-// use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 
 use axum_extra::extract::cookie::{CookieJar, Cookie};
 use crate::db::{self, user};
@@ -29,9 +28,8 @@ type Database = Extension<std::sync::Arc<db::PrismaClient>>;
 
 /*
 
-/api/user => GET, POST
-/api/user/:name => PUT, DELETE
-/comment => POST
+/api/users => GET, POST
+/api/users/:id => GET, PUT
 
 */
 fn print_type<T: Any>(value: &T) {
@@ -51,14 +49,21 @@ struct LoginRequest {
     password: String,
 }
 
+// Define login response
+#[derive(Serialize)]
+struct LoginResponse {
+    code: u8,
+    message: String,
+    data: user::Data,
+}
+
 async fn login_handler(
   db: Database,
   cookie_jar: CookieJar,
   Json(input): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<Value>), AppError> {
-// ) -> AppResult<Json<Value>> {
-  println!("username:{},password:{}",input.name, input.password);
-  // let req_data = input.name.unwrap();
+  tracing::info!("input -> username: {}, password: {}",input.name, input.password);
+
   let user_obj: Option<user::Data> = db
       .user()
       .find_first(vec![user::name::equals(input.name.clone())])
@@ -67,34 +72,27 @@ async fn login_handler(
       .unwrap();
   if user_obj.is_some() == false {
     // If can not find user from db
-    Err(AppError::WrongCredentials)
-  } else {
-    println!("{}", json!(user_obj.is_some()));
-    println!("{}", user_obj.as_ref().unwrap().password);
-    println!("{}", user_obj.as_ref().unwrap().name);
-    println!("{}", user_obj.as_ref().unwrap().id);
-    let jwt_data = sign(user_obj.as_ref().unwrap().id.to_string()).unwrap();
-    println!("{}", jwt_data);
+    return Err(AppError::WrongCredentials)
+  }
+  let jwt_data = sign(user_obj.as_ref().unwrap().id.to_string()).unwrap();
+    tracing::info!("jwt data: {}", jwt_data);
     let set_cookie = Cookie::build("user", jwt_data)
       .path("/")
       .http_only(true)
       .secure(false)
       .finish();
 
-    
     let new_cookie_jar = cookie_jar.add(set_cookie);
-    
-    // println!("{}", jwt_data.unwrap());
-    // println!("{}", json!(user_obj));
-    // println!("{}", json!(updated_user));
-    // println!("{}", json!(user_obj));
+
     Ok((new_cookie_jar,
       Json(json!({
-      "code": 200,
-      "message": "Login Success",
-      "data": ""
+        "code": 200,
+        "message": "Login Success",
+        "data": {
+          "id": user_obj.as_ref().unwrap().id,
+          "name": user_obj.as_ref().unwrap().name,
+        }
       }))))
-  }
 }
 
 // Define login schema

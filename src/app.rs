@@ -1,5 +1,5 @@
 use axum::{
-  extract::Extension,
+  extract::{Json, Extension},
   Router
 };
 use http::header;
@@ -10,10 +10,17 @@ use tower_http::{
   sensitive_headers::SetSensitiveHeadersLayer,
   trace,
 };
+
 use tracing_subscriber::{
   // layer::SubscriberExt,
   util::SubscriberInitExt,
 };
+use utoipa::{
+  openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+  Modify, OpenApi,
+};
+
+use utoipa_swagger_ui::SwaggerUi;
 use std::sync::Arc;
 
 
@@ -39,7 +46,25 @@ pub async fn create_app() -> Router {
     .with_max_level(tracing::Level::INFO)
     .init();
 
+  #[derive(OpenApi)]
+  #[openapi(
+      paths(
+        routes::user::get_users_api,
+      ),
+      components(
+        schemas(
+          routes::user::UsersResponse,
+        )
+      ),
+      // modifiers(&SecurityAddon),
+      tags(
+          (name = "user", description = "Users' API")
+      )
+  )]
+  struct ApiDoc;
+
   Router::new()
+    .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
     .merge(routes::user::create_route())
     .merge(routes::auth::create_route())
     // .merge(Router::new().nest(

@@ -7,14 +7,10 @@ use axum::{
   Extension,
   Router,
 };
-use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
-// use prisma_client_rust::{
-//   prisma_errors::query_engine::{RecordNotFound, UniqueKeyViolation},
-//   QueryError,
-// };
 use axum_extra::extract::cookie::{CookieJar};
 use serde_json::{json, Value};
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
+use utoipa::{IntoParams, ToSchema};
 // use std::any::Any;
 use crate::db::{self, user};
 use crate::error::{AppError, AppResult};
@@ -22,17 +18,16 @@ use crate::middlewares::auth::auth_middleware;
 use crate::utils::jwt::{Claims};
 
 type Database = Extension<std::sync::Arc<db::PrismaClient>>;
-// type AppResult<T> = Result<T, AppError>;
-// type AppJsonResult<T> = AppResult<Json<T>>;
 
-// enum AppError {
-//   PrismaError(QueryError),
-//   NotFound,
-// }
+/*
 
-// Define all your requests schema
-#[derive(Deserialize)]
-struct Pagination {
+/api/users => GET, POST
+/api/users/:id => GET
+/api/users/:id/update_password => POST
+
+*/
+#[derive(Deserialize, IntoParams)]
+pub struct Pagination {
   page: u8,
   page_size: u8,
 }
@@ -43,46 +38,83 @@ impl Default for Pagination {
     }
 }
 
-#[derive(Deserialize)]
-struct Status {
+#[derive(Deserialize, IntoParams)]
+pub struct Status {
   status: Option<String>,
 
 }
-/*
 
-/api/user => GET, POST
-/api/user/:name => PUT, DELETE
-/comment => POST
+impl Default for Status {
+  fn default() -> Self {
+      Self { status: Some("all".to_string()) }
+  }
+}
 
-*/
+#[derive(Serialize)]
+pub struct UsersResponseData {
+  list: Vec<user::Data>,
+  count: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct UsersResponse {
+    code: String,
+    message: String,
+    data: UsersResponseData,
+}
+
 pub fn create_route() -> Router {
   Router::new()
       .route("/users", get(get_users_api))
       .route_layer(middleware::from_fn(auth_middleware))
 }
 
-async fn get_users_api(
+#[utoipa::path(
+  get,
+  path = "/users",
+  responses(
+      (status = 200, description = "Users found successfully", body=UsersResponse),
+      (status = UNAUTHORIZED, description = "Not Logged In")
+  ),
+  params(
+    Pagination,
+    Status,
+  )
+)]
+pub async fn get_users_api(
   Extension(claims): Extension<Claims>,
   db: Database,
   Query(pagination): Query<Pagination>,
   Query(status): Query<Status>,
-) -> AppResult<Json<Value>> {
+) -> AppResult<Json<UsersResponse>> {
   println!("Logged User from Auth Middleware: {}", claims.sub.to_string());
 
-  let mut res = json!({
-    "code": 200,
-    "message": String::from("success"),
-    "data": null,
-  });
+  let mut users_filter = vec![];
 
-  let users = db
+  let user_objs = db
       .user()
-      .find_many(vec![])
+      .find_many(users_filter.clone())
       // .select(db::user::select!({ id }))
       .exec()
       .await
       .unwrap();
 
-  *res.get_mut("data").unwrap() = json!(users);
-  Ok(Json(res))
+  let user_count = db
+      .user()
+      .count(users_filter.clone())
+      .exec()
+      .await?;
+  
+  let res_json_data = UsersResponseData {
+    list: user_objs,
+    count: user_count,
+  };
+
+  let res_json = UsersResponse {
+    code: "200".to_string(),
+    message: "OK".to_string(),
+    data: res_json_data,
+  };
+
+  Ok(Json(res_json))
 }

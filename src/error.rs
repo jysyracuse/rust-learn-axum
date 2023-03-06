@@ -3,7 +3,7 @@ use axum::{
   Json,
   response::{IntoResponse, Response},
 };
-
+use serde::{Serialize, Deserialize};
 use serde_json::{json, Value};
 use thiserror::Error;
 
@@ -15,20 +15,6 @@ use prisma_client_rust::{
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    // #[error("invalid credentials")]
-    // InvalidCredentialsError,
-    // #[error("user exists")]
-    // UserExistsError(String),
-    // #[error("invalid jwt token")]
-    // InvalidJWTTokenError,
-    // #[error("jwt token creation error")]
-    // JWTTokenCreationError,
-    // #[error("authorization header required")]
-    // AuthHeaderRequiredError,
-    // #[error("invalid auth header")]
-    // InvalidAuthHeaderError,
-    // #[error("not authorized")]
-    // NotAuthorizedError,
     #[error("DB Error")]
     PrismaError(QueryError),
     #[error("Record Not Found")]
@@ -40,13 +26,6 @@ pub enum AppError {
     #[error("Invalid Token")]
     JWTTokenInvalid,
 }
-
-// pub enum AppError {
-//   PrismaError(QueryError),
-//   // JWTError(ErrorKind),
-//   NotFound,
-//   WrongCredentials,
-// }
 
 pub type AppResult<T> = Result<T, AppError>;
 // pub type AppJsonResult<T> = AppResult<Json<T>>
@@ -60,11 +39,13 @@ impl From<QueryError> for AppError {
   }
 }
 
-// impl From<ErrorKind> for AppError {
-//   fn from(error: ErrorKind) -> Self {
-//     AppError::JWTError(error)
-//   }
-// }
+/// Define Error Response Struct
+#[derive(Serialize)]
+struct ErrorResponse {
+    code: String,
+    message: String,
+    data: String,
+}
 
 impl IntoResponse for AppError {
   fn into_response(self) -> Response {
@@ -89,10 +70,17 @@ impl IntoResponse for AppError {
           }
       };
 
-      let body = Json(json!({
-          "code": status.to_string(),
-          "message": error_message,
-      }));
+      let res_json = ErrorResponse {
+        code: status.to_string()
+        .chars()
+        .filter(|c| c.is_digit(10))
+        .collect(),
+        message: error_message.to_string(),
+        data: "".to_string()
+      };
+
+      tracing::debug!("{}", json!(&res_json));
+      let body = Json(json!(res_json));
 
       (status, body).into_response()
   }

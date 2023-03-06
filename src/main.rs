@@ -13,6 +13,7 @@ mod middlewares;
 
 #[tokio::main]
 async fn main() {
+
     let app = app::create_app().await;
 
     // Load .env configurations
