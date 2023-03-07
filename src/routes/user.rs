@@ -6,6 +6,7 @@ use axum::{
   Router,
 };
 use axum_extra::extract::cookie::{CookieJar};
+use bcrypt::{DEFAULT_COST, hash, verify};
 use serde_json::{json, Value};
 use serde::{Serialize, Deserialize};
 use utoipa::{IntoParams, ToSchema};
@@ -59,7 +60,8 @@ pub fn create_route() -> Router {
   Router::new()
       .route("/users", get(get_users_api))
       .route("/users/:user_id", get(get_user_api))
-      .route_layer(middleware::from_fn(auth_middleware))
+      .route("/users/:user_id/update_password", post(update_user_password_api))
+      .layer(middleware::from_fn(auth_middleware))
 }
 
 #[utoipa::path(
@@ -154,3 +156,66 @@ pub async fn get_user_api(
 
   Ok(Json(res_json))
 }
+
+#[derive(Deserialize, IntoParams)]
+pub struct UpdateUserPasswordParams {
+  user_id: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateUserPasswordBody {
+    password: String,
+    password_confirm: String,
+}
+
+#[derive(Serialize)]
+pub struct UpdateUserPasswordResponse {
+    code: String,
+    message: String,
+    data: String,
+}
+
+#[utoipa::path(
+  post,
+  path = "/users/:user_id/update_password",
+  request_body = UpdateUserPasswordBody,
+  responses(
+      (status = 200, description = "Password updated successfully"),
+      (status = UNAUTHORIZED, description = "Not Logged In"),
+      (status = BAD_REQUEST, description = "Password Dont Match")
+  ),
+  params(
+    UpdateUserPasswordParams,
+  )
+)]
+pub async fn update_user_password_api(
+  Extension(claims): Extension<Claims>,
+  db: Database,
+  Path(UpdateUserPasswordParams{user_id}): Path<UpdateUserPasswordParams>,
+  Json(input): Json<UpdateUserPasswordBody>,
+) -> AppResult<Json<UpdateUserPasswordResponse>> {
+  if !&input.password.eq(&input.password_confirm) {
+    return Err(AppError::PasswordDontMatch)
+  }
+  let password_hash = hash(&input.password, DEFAULT_COST).unwrap();
+  let user_obj = db
+    .user()
+    .update(
+        user::id::equals(user_id),
+        vec![
+            user::password::set(input.password),
+        ],
+    )
+    .exec()
+    .await
+    .unwrap();
+
+  let res_json = UpdateUserPasswordResponse {
+    code: "200".to_string(),
+    message: "OK".to_string(),
+    data: user_obj.id.to_string(),
+  };
+
+  Ok(Json(res_json))
+}
+

@@ -25,6 +25,8 @@ pub enum AppError {
     WrongCredentials,
     #[error("Invalid Token")]
     JWTTokenInvalid,
+    #[error("Password Dont match")]
+    PasswordDontMatch,
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -67,6 +69,9 @@ impl IntoResponse for AppError {
           }
           AppError::JWTTokenInvalid => {
             (StatusCode::UNAUTHORIZED, "登陆状态错误")
+          }
+          AppError::PasswordDontMatch => {
+            (StatusCode::BAD_REQUEST, "两次密码记录不一致")
           }
       };
 

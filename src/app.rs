@@ -52,10 +52,11 @@ pub async fn create_app() -> Router {
       paths(
         routes::user::get_users_api,
         routes::user::get_user_api,
+        routes::user::update_user_password_api,
       ),
       components(
         schemas(
-          // routes::user::UsersResponse,
+          routes::user::UpdateUserPasswordBody,
         )
       ),
       // modifiers(&SecurityAddon),
