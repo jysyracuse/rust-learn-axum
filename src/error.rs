@@ -1,10 +1,10 @@
 use axum::{
-  http::{header, StatusCode},
+  http::StatusCode,
   Json,
   response::{IntoResponse, Response},
 };
-use serde::{Serialize, Deserialize};
-use serde_json::{json, Value};
+use serde::{Serialize};
+use serde_json::{json};
 use thiserror::Error;
 
 use prisma_client_rust::{

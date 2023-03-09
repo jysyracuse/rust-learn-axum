@@ -50,6 +50,8 @@ pub async fn create_app() -> Router {
   #[derive(OpenApi)]
   #[openapi(
       paths(
+        routes::auth::login_api,
+        routes::auth::register_api,
         routes::user::get_users_api,
         routes::user::get_user_api,
         routes::user::update_user_password_api,

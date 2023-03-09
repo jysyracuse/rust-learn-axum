@@ -189,33 +189,34 @@ pub struct UpdateUserPasswordResponse {
   )
 )]
 pub async fn update_user_password_api(
-  Extension(claims): Extension<Claims>,
-  db: Database,
-  Path(UpdateUserPasswordParams{user_id}): Path<UpdateUserPasswordParams>,
-  Json(input): Json<UpdateUserPasswordBody>,
+    Extension(claims): Extension<Claims>,
+    db: Database,
+    Path(UpdateUserPasswordParams{user_id}): Path<UpdateUserPasswordParams>,
+    Json(input): Json<UpdateUserPasswordBody>,
 ) -> AppResult<Json<UpdateUserPasswordResponse>> {
-  if !&input.password.eq(&input.password_confirm) {
-    return Err(AppError::PasswordDontMatch)
-  }
-  let password_hash = hash(&input.password, DEFAULT_COST).unwrap();
-  let user_obj = db
-    .user()
-    .update(
-        user::id::equals(user_id),
-        vec![
-            user::password::set(input.password),
-        ],
-    )
-    .exec()
-    .await
-    .unwrap();
+    if !&input.password.eq(&input.password_confirm) {
+      return Err(AppError::PasswordDontMatch)
+    }
+    let password_hash = hash(&input.password, DEFAULT_COST).unwrap();
+    
+    let user_obj = db
+        .user()
+        .update(
+            user::id::equals(user_id),
+            vec![
+                user::password::set(input.password),
+            ],
+        )
+        .exec()
+        .await
+        .unwrap();
 
-  let res_json = UpdateUserPasswordResponse {
-    code: "200".to_string(),
-    message: "OK".to_string(),
-    data: user_obj.id.to_string(),
-  };
+    let res_json = UpdateUserPasswordResponse {
+      code: "200".to_string(),
+      message: "OK".to_string(),
+      data: user_obj.id.to_string(),
+    };
 
-  Ok(Json(res_json))
+    Ok(Json(res_json))
 }
 
