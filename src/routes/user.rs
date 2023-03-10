@@ -5,9 +5,7 @@ use axum::{
   Extension,
   Router,
 };
-use axum_extra::extract::cookie::{CookieJar};
-use bcrypt::{DEFAULT_COST, hash, verify};
-use serde_json::{json, Value};
+use bcrypt::{DEFAULT_COST, hash};
 use serde::{Serialize, Deserialize};
 use utoipa::{IntoParams, ToSchema};
 use crate::db::{self, user};
@@ -17,6 +15,7 @@ use crate::utils::jwt::{Claims};
 
 type Database = Extension<std::sync::Arc<db::PrismaClient>>;
 
+use serde_json::json;
 /*
 
 Plan for User API
@@ -61,6 +60,7 @@ pub fn create_route() -> Router {
       .route("/users", get(get_users_api))
       .route("/users/:user_id", get(get_user_api))
       .route("/users/:user_id/update_password", post(update_user_password_api))
+      .route("/users/:user_id", delete(delete_user_api))
       .layer(middleware::from_fn(auth_middleware))
 }
 
@@ -140,18 +140,27 @@ pub async fn get_user_api(
   db: Database,
   Path(GetUserParams{user_id}): Path<GetUserParams>,
 ) -> AppResult<Json<GetUserAPIResponse>> {
-  let user_obj = db
+  let user_obj_q = db
       .user()
       .find_unique(user::id::equals(user_id))
       .exec()
-      .await
-      .unwrap()
-      .unwrap();
+      .await?;
+      // .unwrap()
+      // .unwrap();
+
+
+      // .map_err(|_| AppError::RecordNotFound)?
+      // .unwrap();
+  tracing::info!("{}", json!(user_obj_q));
+  if user_obj_q.is_none() {
+    return Err(AppError::RecordNotFound)
+  }
+
 
   let res_json = GetUserAPIResponse {
     code: "200".to_string(),
     message: "OK".to_string(),
-    data: user_obj,
+    data: user_obj_q.unwrap(),
   };
 
   Ok(Json(res_json))
@@ -198,7 +207,7 @@ pub async fn update_user_password_api(
       return Err(AppError::PasswordDontMatch)
     }
     let password_hash = hash(&input.password, DEFAULT_COST).unwrap();
-    
+
     let user_obj = db
         .user()
         .update(
@@ -220,3 +229,57 @@ pub async fn update_user_password_api(
     Ok(Json(res_json))
 }
 
+
+#[derive(Deserialize, IntoParams)]
+pub struct DeleteUserParams {
+  user_id: String,
+}
+
+#[derive(Serialize)]
+pub struct DeleteUserResponse {
+    code: String,
+    message: String,
+    data: String,
+}
+
+#[utoipa::path(
+  delete,
+  path = "/users/:user_id",
+  responses(
+      (status = 200, description = "User Delete successfully"),
+      (status = BAD_REQUEST, description = "Record Not Found"),
+      (status = UNAUTHORIZED, description = "Not Logged In"),
+  ),
+  params(
+    UpdateUserPasswordParams,
+  )
+)]
+pub async fn delete_user_api(
+    Extension(claims): Extension<Claims>,
+    db: Database,
+    Path(DeleteUserParams{user_id}): Path<DeleteUserParams>,
+) -> AppResult<Json<DeleteUserResponse>> {
+    let user_obj_q = db
+      .user()
+      .find_unique(user::id::equals(String::from(&user_id)))
+      .exec()
+      .await?;
+
+    if user_obj_q.is_none() {
+      return Err(AppError::RecordNotFound)
+    }
+
+    let user_del_q = db
+        .user()
+        .delete(user::id::equals(String::from(&user_id)))
+        .exec()
+        .await?;
+
+    let res_json = DeleteUserResponse {
+      code: "200".to_string(),
+      message: "User Deleted".to_string(),
+      data: String::from(&user_id),
+    };
+
+    Ok(Json(res_json))
+}

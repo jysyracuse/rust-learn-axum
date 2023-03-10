@@ -1,11 +1,11 @@
 use axum::{
     http::Request,
-    response::{IntoResponse, Response},
+    response::Response,
     middleware::Next,
 };
-use axum_extra::extract::cookie::{CookieJar, Cookie};
+use axum_extra::extract::cookie::{CookieJar};
 use crate::utils::jwt::verify;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError};
 
 /* 
   Middleware Example:
