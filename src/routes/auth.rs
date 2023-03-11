@@ -1,30 +1,19 @@
 use axum::{
-  extract::{Json, Path, Query},
-  http::StatusCode,
-  response::{IntoResponseParts, IntoResponse},
-  routing::{get, post, delete},
-  Extension, Router,
+  extract::Json,
+  routing::post,
+  Extension,
+  Router,
 };
-use uuid::uuid;
-use prisma_client_rust::{
-  prisma_errors::query_engine::{RecordNotFound, UniqueKeyViolation},
-  QueryError,
-};
-
-use serde::{Serialize, Deserialize};
-use serde_json::{json, Value};
-use std::any::Any;
-use bcrypt::{DEFAULT_COST, hash, verify};
-
 use axum_extra::extract::cookie::{CookieJar, Cookie};
+use serde::{Serialize, Deserialize};
+use std::any::Any;
+use bcrypt::{DEFAULT_COST, verify, hash};
+use utoipa::{ToSchema};
 use crate::db::{self, user};
 use crate::error::{AppError, AppResult};
 use crate::utils::jwt::sign;
-use crate::middlewares::auth::auth_middleware;
 
 type Database = Extension<std::sync::Arc<db::PrismaClient>>;
-
-
 
 /*
 
@@ -38,77 +27,115 @@ fn print_type<T: Any>(value: &T) {
 
 pub fn create_route() -> Router {
   Router::new()
-      .route("/login", post(login_handler))
-      .route("/register", post(register_handler))
+      .route("/login", post(login_api))
+      .route("/register", post(register_api))
 }
 
 // Define login schema
 #[derive(Deserialize)]
-struct LoginRequest {
+pub struct LoginRequestBody {
     name: String,
     password: String,
 }
 
 // Define login response
 #[derive(Serialize)]
-struct LoginResponse {
-    code: u8,
+pub struct LoginResponse {
+    code: String,
     message: String,
     data: user::Data,
 }
 
-async fn login_handler(
+#[utoipa::path(
+  post,
+  path = "/login",
+  request_body = LoginRequestBody,
+  responses(
+      (status = 200, description = "Login successfully"),
+      (status = 401, description = "User Not Existed"),
+      (status = 401, description = "User/Password Incorrect"),
+  ),
+)]
+async fn login_api(
   db: Database,
   cookie_jar: CookieJar,
-  Json(input): Json<LoginRequest>,
-) -> Result<(CookieJar, Json<Value>), AppError> {
-  tracing::info!("input -> username: {}, password: {}",input.name, input.password);
+  Json(input): Json<LoginRequestBody>,
+) -> Result<(CookieJar, Json<LoginResponse>), AppError> {
+  // tracing::info!("input -> username: {}, password: {}",input.name, input.password);
 
-  let user_obj: Option<user::Data> = db
+  let user_obj_q: Option<user::Data> = db
       .user()
       .find_first(vec![user::name::equals(input.name.clone())])
       .exec()
       .await
       .unwrap();
-  if user_obj.is_some() == false {
+      
+  if user_obj_q.is_some() == false {
     // If can not find user from db
     return Err(AppError::WrongCredentials)
   }
-  
-  let jwt_data = sign(user_obj.as_ref().unwrap().id.to_string()).unwrap();
-    tracing::info!("jwt data: {}", jwt_data);
-    let set_cookie = Cookie::build("user", jwt_data)
-      .path("/")
-      .http_only(true)
-      .secure(false)
-      .finish();
 
-    let new_cookie_jar = cookie_jar.add(set_cookie);
+  let user_obj = user_obj_q.unwrap();
+  let pass_correct = verify(&input.password, &user_obj.password).map_err(|_| AppError::WrongCredentials)?;
+  // tracing::info!("pass_correct: {}", &pass_correct);
+  // if !&pass_correct {
+  //   return Err(AppError::WrongCredentials)
+  // }
+  // set jwt cookie
+  let jwt_data = sign(user_obj.id.to_string()).unwrap();
+  tracing::info!("jwt data: {}", jwt_data);
+  let set_cookie = Cookie::build("user", jwt_data)
+    .path("/")
+    .http_only(true)
+    .secure(false)
+    .finish();
+  let new_cookie_jar = cookie_jar.add(set_cookie);
 
-    Ok((new_cookie_jar,
-      Json(json!({
-        "code": 200,
-        "message": "Login Success",
-        "data": {
-          "id": user_obj.as_ref().unwrap().id,
-          "name": user_obj.as_ref().unwrap().name,
-        }
-      }))))
+  let res_json = LoginResponse {
+    code: "200".to_string(),
+    message: "Login Success".to_string(),
+    data: user_obj
+  };
+
+  return Ok((
+    new_cookie_jar,
+    Json(res_json)
+  ))
 }
 
 // Define login schema
 #[derive(Deserialize)]
-struct RegisterRequest {
+pub struct RegisterRequestBody {
     name: String,
     password: String,
+    password_confirm: String,
 }
 
-async fn register_handler(
+#[derive(Serialize)]
+pub struct RegisterResponse {
+    code: String,
+    message: String,
+    data: String,
+}
+
+#[utoipa::path(
+  post,
+  path = "/register",
+  request_body = LoginRequestBody,
+  responses(
+      (status = 200, description = "Register successfully"),
+      (status = 400, description = "Record Not Existed")
+  ),
+)]
+async fn register_api(
   db: Database,
-  Json(input): Json<LoginRequest>,
-) -> AppResult<Json<Value>> {
-  println!("username:{},password:{}",input.name, input.password);
+  Json(input): Json<RegisterRequestBody>,
+) -> AppResult<Json<RegisterResponse>> {
+  tracing::info!("username:{},password:{},password_confirm: {}",input.name, input.password, input.password_confirm);
   // let req_data = input.name.unwrap();
+  if !&input.password.eq(&input.password_confirm) {
+    return Err(AppError::PasswordDontMatch)
+  }
 
   let existed_user_obj = db
       .user()
@@ -129,10 +156,12 @@ async fn register_handler(
           .await
           .unwrap();
 
-      return Ok(Json(json!({
-        "code": 200,
-        "message": "Register Success",
-        "data": ""
-      })))
+      let res_json = RegisterResponse {
+        code: "200".to_string(),
+        message: "OK".to_string(),
+        data: user_obj.id.to_string(),
+      };
+
+      return Ok(Json(res_json))
   }
 }

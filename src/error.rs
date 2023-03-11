@@ -1,10 +1,10 @@
 use axum::{
-  http::{header, StatusCode},
+  http::StatusCode,
   Json,
   response::{IntoResponse, Response},
 };
-use serde::{Serialize, Deserialize};
-use serde_json::{json, Value};
+use serde::{Serialize};
+use serde_json::{json};
 use thiserror::Error;
 
 use prisma_client_rust::{
@@ -53,25 +53,25 @@ impl IntoResponse for AppError {
   fn into_response(self) -> Response {
       let (status, error_message) = match self {
           AppError::PrismaError(error) if error.is_prisma_error::<UniqueKeyViolation>() => {
-            (StatusCode::CONFLICT, "记录已存在")
+            (StatusCode::CONFLICT, "Record existed")
           }
           AppError::PrismaError(_) => {
-            (StatusCode::BAD_REQUEST, "查询出错")
+            (StatusCode::BAD_REQUEST, "Query Error")
           }
           AppError::RecordNotFound => {
-            (StatusCode::NOT_FOUND, "未找到结果")
+            (StatusCode::NOT_FOUND, "Record not found")
           }
           AppError::RecordExisted => {
-            (StatusCode::BAD_REQUEST, "已有该记录")
+            (StatusCode::BAD_REQUEST, "Record existed")
           }
           AppError::WrongCredentials => {
-            (StatusCode::UNAUTHORIZED, "错误的用户名/密码")
+            (StatusCode::UNAUTHORIZED, "Username/password incorrect")
           }
           AppError::JWTTokenInvalid => {
-            (StatusCode::UNAUTHORIZED, "登陆状态错误")
+            (StatusCode::UNAUTHORIZED, "Login Error")
           }
           AppError::PasswordDontMatch => {
-            (StatusCode::BAD_REQUEST, "两次密码记录不一致")
+            (StatusCode::BAD_REQUEST, "Passwords don't match")
           }
       };
 

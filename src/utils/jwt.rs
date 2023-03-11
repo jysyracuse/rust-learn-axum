@@ -1,11 +1,4 @@
 use chrono::{Duration, Utc};
-use std::fmt::Display;
-use axum::{
-    extract::TypedHeader,
-    Json,
-    headers::{authorization::Bearer, Authorization}
-};
-
 use jsonwebtoken::{
     encode,
     decode,
@@ -14,13 +7,9 @@ use jsonwebtoken::{
     DecodingKey,
     Validation,
 };
-
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use crate::db::{self, user};
 use crate::error::AppError;
 use uuid::Uuid;
-
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Claims {
