@@ -8,7 +8,6 @@ use axum_extra::extract::cookie::{CookieJar, Cookie};
 use serde::{Serialize, Deserialize};
 use std::any::Any;
 use bcrypt::{DEFAULT_COST, verify, hash};
-use utoipa::{ToSchema};
 use crate::db::{self, user};
 use crate::error::{AppError, AppResult};
 use crate::utils::jwt::sign;

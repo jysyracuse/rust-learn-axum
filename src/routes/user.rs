@@ -77,10 +77,10 @@ pub fn create_route() -> Router {
   )
 )]
 pub async fn get_users_api(
-  Extension(claims): Extension<Claims>,
+  Extension(_claims): Extension<Claims>,
   db: Database,
-  Query(pagination): Query<Pagination>,
-  Query(status): Query<Status>,
+  Query(_pagination): Query<Pagination>,
+  Query(_status): Query<Status>,
 ) -> AppResult<Json<GetUsersAPIResponse>> {
   let mut users_filter = vec![];
 
@@ -136,7 +136,7 @@ pub struct GetUserAPIResponse {
   )
 )]
 pub async fn get_user_api(
-  Extension(claims): Extension<Claims>,
+  Extension(_claims): Extension<Claims>,
   db: Database,
   Path(GetUserParams{user_id}): Path<GetUserParams>,
 ) -> AppResult<Json<GetUserAPIResponse>> {
@@ -203,6 +203,11 @@ pub async fn update_user_password_api(
     Path(UpdateUserPasswordParams{user_id}): Path<UpdateUserPasswordParams>,
     Json(input): Json<UpdateUserPasswordBody>,
 ) -> AppResult<Json<UpdateUserPasswordResponse>> {
+    // Avoid user delete his/her self
+    if claims.sub.to_string().eq(&user_id) {
+      return Err(AppError::OperationConflict)
+    }
+
     if !&input.password.eq(&input.password_confirm) {
       return Err(AppError::PasswordDontMatch)
     }
@@ -259,6 +264,11 @@ pub async fn delete_user_api(
     db: Database,
     Path(DeleteUserParams{user_id}): Path<DeleteUserParams>,
 ) -> AppResult<Json<DeleteUserResponse>> {
+    // Avoid user delete his/her self
+    if claims.sub.to_string().eq(&user_id) {
+      return Err(AppError::OperationConflict)
+    }
+
     let user_obj_q = db
       .user()
       .find_unique(user::id::equals(String::from(&user_id)))

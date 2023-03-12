@@ -27,6 +27,8 @@ pub enum AppError {
     JWTTokenInvalid,
     #[error("Password Dont match")]
     PasswordDontMatch,
+    #[error("Operation Conflict")]
+    OperationConflict,
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -73,8 +75,11 @@ impl IntoResponse for AppError {
           AppError::PasswordDontMatch => {
             (StatusCode::BAD_REQUEST, "Passwords don't match")
           }
+          AppError::OperationConflict => {
+            (StatusCode::BAD_REQUEST, "Operation Conflict")
+          }
       };
-
+      
       let res_json = ErrorResponse {
         code: status.to_string()
         .chars()
