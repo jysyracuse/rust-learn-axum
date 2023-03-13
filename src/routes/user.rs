@@ -8,14 +8,13 @@ use axum::{
 use bcrypt::{DEFAULT_COST, hash};
 use serde::{Serialize, Deserialize};
 use utoipa::{IntoParams, ToSchema};
+use serde_json::json;
 use crate::db::{self, user};
 use crate::error::{AppError, AppResult};
 use crate::middlewares::auth::auth_middleware;
 use crate::utils::jwt::{Claims};
-
 type Database = Extension<std::sync::Arc<db::PrismaClient>>;
 
-use serde_json::json;
 /*
 
 Plan for User API

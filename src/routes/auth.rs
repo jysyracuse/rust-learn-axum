@@ -10,7 +10,6 @@ use bcrypt::{DEFAULT_COST, verify, hash};
 use crate::db::{self, user};
 use crate::error::{AppError, AppResult};
 use crate::utils::jwt::sign;
-
 type Database = Extension<std::sync::Arc<db::PrismaClient>>;
 
 /*
