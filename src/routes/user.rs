@@ -21,31 +21,22 @@ use serde_json::json;
 Plan for User API
 
 /api/users => GET, POST
-/api/users/:id => GET
-/api/users/:id/update_password => POST
+/api/users/:user_id => GET
+/api/users/:user_id/update_password => POST
+/api/users/:user_id => DELETE
 
 */
 #[derive(Deserialize, IntoParams)]
-pub struct Pagination {
-  page: u8,
-  page_size: u8,
-}
-
-#[derive(Deserialize, IntoParams)]
-pub struct Status {
-  status: Option<String>,
-}
-
-impl Default for Status {
-  fn default() -> Self {
-      Self { status: Some("all".to_string()) }
-  }
+pub struct GetUsersAPIQuery {
+    page: Option<i32>,
+    page_size: Option<i32>,
+    status: Option<i32>,
 }
 
 #[derive(Serialize)]
 struct UsersData {
-  list: Vec<user::Data>,
-  count: i64,
+    list: Vec<user::Data>,
+    count: i64,
 }
 
 #[derive(Serialize)]
@@ -72,22 +63,29 @@ pub fn create_route() -> Router {
       (status = UNAUTHORIZED, description = "Not Logged In")
   ),
   params(
-    Pagination,
-    Status,
+    GetUsersAPIQuery,
   )
 )]
 pub async fn get_users_api(
   Extension(_claims): Extension<Claims>,
   db: Database,
-  Query(_pagination): Query<Pagination>,
-  Query(_status): Query<Status>,
+  Query(query): Query<GetUsersAPIQuery>,
 ) -> AppResult<Json<GetUsersAPIResponse>> {
   let mut users_filter = vec![];
+
+  // apply filter
+  let status_ind = query.status.unwrap_or(99);
+  if status_ind < 99 {
+    users_filter.push(user::status::equals(status_ind))
+  }
 
   let user_objs = db
       .user()
       .find_many(users_filter.clone())
       // .select()
+      // apply pagination
+      .take(i64::from(query.page_size.unwrap_or(10)))
+      .skip(i64::from(query.page_size.unwrap_or(10) * (query.page.unwrap_or(1) - 1)))
       .exec()
       .await
       .unwrap();
@@ -218,7 +216,7 @@ pub async fn update_user_password_api(
         .update(
             user::id::equals(user_id),
             vec![
-                user::password::set(input.password),
+                user::password::set(password_hash),
             ],
         )
         .exec()
@@ -279,11 +277,10 @@ pub async fn delete_user_api(
       return Err(AppError::RecordNotFound)
     }
 
-    let user_del_q = db
-        .user()
-        .delete(user::id::equals(String::from(&user_id)))
-        .exec()
-        .await?;
+    db.user()
+      .delete(user::id::equals(String::from(&user_id)))
+      .exec()
+      .await?;
 
     let res_json = DeleteUserResponse {
       code: "200".to_string(),

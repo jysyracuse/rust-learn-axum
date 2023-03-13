@@ -6,7 +6,6 @@ use axum::{
 };
 use axum_extra::extract::cookie::{CookieJar, Cookie};
 use serde::{Serialize, Deserialize};
-use std::any::Any;
 use bcrypt::{DEFAULT_COST, verify, hash};
 use crate::db::{self, user};
 use crate::error::{AppError, AppResult};
@@ -16,13 +15,13 @@ type Database = Extension<std::sync::Arc<db::PrismaClient>>;
 
 /*
 
-/api/users => GET, POST
-/api/users/:id => GET, PUT
+Plan for Auth API
+
+/login => POST
+/register => POST
 
 */
-fn print_type<T: Any>(value: &T) {
-  println!("Type of value: {:?}", std::any::type_name::<T>());
-}
+
 
 pub fn create_route() -> Router {
   Router::new()
@@ -75,11 +74,8 @@ async fn login_api(
   }
 
   let user_obj = user_obj_q.unwrap();
-  let pass_correct = verify(&input.password, &user_obj.password).map_err(|_| AppError::WrongCredentials)?;
-  // tracing::info!("pass_correct: {}", &pass_correct);
-  // if !&pass_correct {
-  //   return Err(AppError::WrongCredentials)
-  // }
+  verify(&input.password, &user_obj.password).map_err(|_| AppError::WrongCredentials)?;
+
   // set jwt cookie
   let jwt_data = sign(user_obj.id.to_string()).unwrap();
   tracing::info!("jwt data: {}", jwt_data);

@@ -27,7 +27,7 @@ pub async fn auth_middleware<B>(
         println!("Logged User's Id: {}", claims.sub);
         req.extensions_mut().insert(claims);
       }
-      Err(e) => {
+      Err(_e) => {
         println!("Cookie Validate failed");
         return Err(AppError::JWTTokenInvalid)
       }
