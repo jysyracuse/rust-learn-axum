@@ -20,22 +20,19 @@ Plan for Auth API
 /register => POST
 
 */
-
-
 pub fn create_route() -> Router {
   Router::new()
       .route("/login", post(login_api))
       .route("/register", post(register_api))
 }
 
-// Define login schema
+/// Define Login Schemas
 #[derive(Deserialize)]
 pub struct LoginRequestBody {
     name: String,
     password: String,
 }
 
-// Define login response
 #[derive(Serialize)]
 pub struct LoginResponse {
     code: String,
@@ -58,8 +55,6 @@ async fn login_api(
   cookie_jar: CookieJar,
   Json(input): Json<LoginRequestBody>,
 ) -> Result<(CookieJar, Json<LoginResponse>), AppError> {
-  // tracing::info!("input -> username: {}, password: {}",input.name, input.password);
-
   let user_obj_q: Option<user::Data> = db
       .user()
       .find_first(vec![user::name::equals(input.name.clone())])
@@ -68,21 +63,24 @@ async fn login_api(
       .unwrap();
       
   if user_obj_q.is_some() == false {
-    // If can not find user from db
-    return Err(AppError::WrongCredentials)
+      /// Throw Error when user not found
+      return Err(AppError::WrongCredentials)
   }
 
   let user_obj = user_obj_q.unwrap();
+
+
   verify(&input.password, &user_obj.password).map_err(|_| AppError::WrongCredentials)?;
 
   // set jwt cookie
   let jwt_data = sign(user_obj.id.to_string()).unwrap();
-  tracing::info!("jwt data: {}", jwt_data);
+
   let set_cookie = Cookie::build("user", jwt_data)
-    .path("/")
-    .http_only(true)
-    .secure(false)
-    .finish();
+      .path("/")
+      .http_only(true)
+      .secure(false)
+      .finish();
+
   let new_cookie_jar = cookie_jar.add(set_cookie);
 
   let res_json = LoginResponse {
@@ -97,7 +95,7 @@ async fn login_api(
   ))
 }
 
-// Define login schema
+/// Define Register Schemas
 #[derive(Deserialize)]
 pub struct RegisterRequestBody {
     name: String,
@@ -118,44 +116,48 @@ pub struct RegisterResponse {
   request_body = LoginRequestBody,
   responses(
       (status = 200, description = "Register successfully"),
-      (status = 400, description = "Record Not Existed")
+      (status = 400, description = "Record Not Existed"),
+      (status = 400, description = "Password Not Match")
   ),
 )]
 async fn register_api(
   db: Database,
   Json(input): Json<RegisterRequestBody>,
 ) -> AppResult<Json<RegisterResponse>> {
-  tracing::info!("username:{},password:{},password_confirm: {}",input.name, input.password, input.password_confirm);
-  // let req_data = input.name.unwrap();
-  if !&input.password.eq(&input.password_confirm) {
-    return Err(AppError::PasswordDontMatch)
-  }
+    /// Verify Passwords are same
+    if !&input.password.eq(&input.password_confirm) {
+      return Err(AppError::PasswordDontMatch)
+    }
 
-  let existed_user_obj = db
-      .user()
-      .find_first(vec![user::name::equals(input.name.clone())])
-      .exec()
-      .await
-      .unwrap();
+    /// Existed User Check
+    let existed_user_obj = db
+        .user()
+        .find_first(vec![user::name::equals(input.name.clone())])
+        .exec()
+        .await
+        .unwrap();
+    
+    /// Don't allow if there is already record with user name
+    if existed_user_obj.is_some() == true {
+        return Err(AppError::RecordExisted)
+    } else {
+        let password_hash = hash(input.password, DEFAULT_COST).unwrap();
+        // traccing::info!("password_hash: {}", &password_hash);
 
-  if existed_user_obj.is_some() == true {
-      return Err(AppError::RecordExisted)
-  } else {
-      let password_hash = hash(input.password, DEFAULT_COST).unwrap();
-      println!("password_hash: {}", &password_hash);
-      let user_obj = db
-          .user()
-          .create(input.name, password_hash.to_string(), vec![])
-          .exec()
-          .await
-          .unwrap();
+        let user_obj = db
+            .user()
+            .create(input.name, password_hash, vec![])
+            .exec()
+            .await
+            .unwrap();
 
-      let res_json = RegisterResponse {
-        code: "200".to_string(),
-        message: "OK".to_string(),
-        data: user_obj.id.to_string(),
-      };
+        /// Response
+        let res_json = RegisterResponse {
+          code: "200".to_string(),
+          message: "OK".to_string(),
+          data: user_obj.id.to_string(),
+        };
 
-      return Ok(Json(res_json))
-  }
+        return Ok(Json(res_json))
+    }
 }
