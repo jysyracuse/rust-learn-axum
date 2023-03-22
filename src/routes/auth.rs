@@ -142,8 +142,6 @@ async fn register_api(
         return Err(AppError::RecordExisted)
     } else {
         let password_hash = hash(input.password, DEFAULT_COST).unwrap();
-        // traccing::info!("password_hash: {}", &password_hash);
-
         let user_obj = db
             .user()
             .create(input.name, password_hash, vec![])

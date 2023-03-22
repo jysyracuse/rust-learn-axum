@@ -73,7 +73,10 @@ pub async fn get_users_api(
   let mut users_filter = vec![];
 
   // apply filter
+  
+
   let status_ind = query.status.unwrap_or(99);
+  tracing::info!("{}", status_ind);
   if status_ind < 99 {
     users_filter.push(user::status::equals(status_ind))
   }
