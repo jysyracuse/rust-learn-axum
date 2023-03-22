@@ -20,15 +20,15 @@ pub async fn auth_middleware<B>(
 ) -> Result<Response, AppError> {
   if let Some(user_token) = cookie_jar.get("user") {
     // Note: Print user's cookie
-    println!("User's Cookie: {}", &user_token.value());
+    tracing::info!("User's Cookie: {}", &user_token.value());
 
     match verify(&user_token.value()) {
       Ok(claims) => {
-        println!("Logged User's Id: {}", claims.sub);
+        tracing::info!("Logged User's Id: {}", claims.sub);
         req.extensions_mut().insert(claims);
       }
-      Err(e) => {
-        println!("Cookie Validate failed");
+      Err(_e) => {
+        tracing::info!("Cookie Validate failed");
         return Err(AppError::JWTTokenInvalid)
       }
     };
