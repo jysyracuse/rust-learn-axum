@@ -50,6 +50,7 @@ pub fn create_route() -> Router {
       .route("/users", get(get_users_api))
       .route("/users/:user_id", get(get_user_api))
       .route("/users/:user_id/update_password", post(update_user_password_api))
+      .route("/users/:user_id/update_status", post(update_user_status_api))
       .route("/users/:user_id", delete(delete_user_api))
       .layer(middleware::from_fn(auth_middleware))
 }
@@ -168,7 +169,7 @@ pub async fn get_user_api(
 
 #[derive(Deserialize, IntoParams)]
 pub struct UpdateUserPasswordParams {
-  user_id: String,
+    user_id: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -234,6 +235,67 @@ pub async fn update_user_password_api(
     Ok(Json(res_json))
 }
 
+#[derive(Deserialize, IntoParams)]
+pub struct UpdateUserStatusParams {
+    user_id: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateUserStatusBody {
+    status: i32,
+}
+
+#[derive(Serialize)]
+pub struct UpdateUserStatusResponse {
+    code: String,
+    message: String,
+    data: String,
+}
+
+#[utoipa::path(
+  post,
+  path = "/users/:user_id/update_status",
+  request_body = UpdateUserStatusBody,
+  responses(
+      (status = 200, description = "Password updated successfully"),
+      (status = UNAUTHORIZED, description = "Not Logged In"),
+      (status = BAD_REQUEST, description = "Password Dont Match")
+  ),
+  params(
+    UpdateUserStatusParams,
+  )
+)]
+pub async fn update_user_status_api(
+    Extension(claims): Extension<Claims>,
+    db: Database,
+    Path(UpdateUserStatusParams{user_id}): Path<UpdateUserStatusParams>,
+    Json(input): Json<UpdateUserStatusBody>,
+) -> AppResult<Json<UpdateUserStatusResponse>> {
+    // Avoid user delete his/her self
+    if !claims.sub.to_string().eq(&user_id) {
+      return Err(AppError::OperationConflict)
+    }
+
+    let user_obj = db
+        .user()
+        .update(
+            user::id::equals(user_id),
+            vec![
+                user::status::set(input.status),
+            ],
+        )
+        .exec()
+        .await
+        .unwrap();
+
+    let res_json = UpdateUserStatusResponse {
+      code: "200".to_string(),
+      message: "OK".to_string(),
+      data: user_obj.id.to_string(),
+    };
+
+    Ok(Json(res_json))
+}
 
 #[derive(Deserialize, IntoParams)]
 pub struct DeleteUserParams {
